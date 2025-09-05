@@ -122,6 +122,8 @@ export function PointOfSale() {
   const [invoiceType, setInvoiceType] = useState<'boleta' | 'factura'>('boleta');
   const [currentSale, setCurrentSale] = useState<any>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [showSaleConfirmation, setShowSaleConfirmation] = useState(false);
+  const [confirmedSale, setConfirmedSale] = useState<any>(null);
 
   useEffect(() => {
     const handler = () => setInvoiceOpen(true);
@@ -291,8 +293,9 @@ export function PointOfSale() {
 
     dispatch({ type: 'ADD_SALE', payload: sale });
     setCurrentSale(sale);
-    setInvoiceOpen(true);
-    clearCart(); // Limpiar carrito después de la venta
+    setConfirmedSale(sale);
+    setShowSaleConfirmation(true);
+    clearCart();  // Limpiar carrito después de la venta
   };
 
   const paymentMethods = [
@@ -340,7 +343,73 @@ export function PointOfSale() {
     },
   ];
 
-  return (
+ const SaleConfirmationModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md mx-4">
+        <div className="text-center">
+          {/* Icono de éxito */}
+          <div className="bg-green-100 rounded-full p-4 inline-block mb-4">
+            <svg className="h-12 w-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          
+          <h3 className="text-2xl font-bold text-gray-900 mb-2">¡Venta Realizada!</h3>
+          <p className="text-gray-600 mb-6">La compra ha sido registrada exitosamente</p>
+          
+          {/* Detalles de la venta */}
+          {confirmedSale && (
+            <div className="bg-gray-50 rounded-lg p-4 mb-6 text-left">
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">N° de Venta:</span>
+                  <span className="text-sm font-medium text-gray-900">{confirmedSale.saleNumber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Total:</span>
+                  <span className="text-lg font-bold text-green-600">S/ {confirmedSale.total.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Método de Pago:</span>
+                  <span className="text-sm font-medium text-gray-900 capitalize">{confirmedSale.paymentMethod}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Productos:</span>
+                  <span className="text-sm font-medium text-gray-900">{confirmedSale.items.length} items</span>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Botones de acción */}
+          <div className="space-y-3">
+            <button
+              onClick={() => {
+                setShowSaleConfirmation(false);
+                setCurrentSale(confirmedSale);
+                setInvoiceOpen(true);
+              }}
+              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center space-x-2"
+            >
+              <Receipt className="h-5 w-5" />
+              <span>Generar Comprobante</span>
+            </button>
+            
+            <button
+              onClick={() => {
+                setShowSaleConfirmation(false);
+                setConfirmedSale(null);
+              }}
+              className="w-full bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors font-medium"
+            >
+              Continuar Vendiendo
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       {/* Product Search */}
       <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200">
@@ -636,11 +705,15 @@ export function PointOfSale() {
 
       <InvoiceModal
         open={invoiceOpen}
-        onClose={() => setInvoiceOpen(false)}
+        onClose={() => {
+          setInvoiceOpen(false);
+          setCurrentSale(null);
+        }}
         sale={currentSale}
         type={invoiceType}
         setType={setInvoiceType}
       />
+      {showSaleConfirmation && <SaleConfirmationModal />}
     </div>
   );
 }
