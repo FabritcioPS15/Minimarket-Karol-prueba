@@ -9,7 +9,9 @@ import {
   Shield, 
   UserCheck, 
   UserX,
-  Search
+  Search,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 export function UsersModule() {
@@ -31,7 +33,11 @@ export function UsersModule() {
       email: user?.email || '',
       role: user?.role || 'cashier' as UserRole,
       isActive: user?.isActive ?? true,
+      password: '', // Campo añadido para contraseña
+      confirmPassword: '', // Campo para confirmar contraseña
     });
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
 
@@ -41,16 +47,36 @@ export function UsersModule() {
       setError('');
 
       try {
+        // Validaciones
+        if (!user && !formData.password.trim()) {
+          throw new Error('La contraseña es requerida');
+        }
+
+        if (!user && formData.password !== formData.confirmPassword) {
+          throw new Error('Las contraseñas no coinciden');
+        }
+
         if (user) {
           // Actualizar usuario existente
           const updatedUser: User = {
             ...user,
-            ...formData,
+            username: formData.username,
+            email: formData.email,
+            role: formData.role,
+            isActive: formData.isActive,
+            // Solo actualizar password si se proporcionó uno nuevo
+            ...(formData.password.trim() && { password: formData.password })
           };
           await users.updateUser(updatedUser);
         } else {
-          // Crear nuevo usuario
-          await users.addUser(formData);
+          // Crear nuevo usuario - incluir password
+          await users.addUser({
+            username: formData.username,
+            email: formData.email,
+            role: formData.role,
+            isActive: formData.isActive,
+            password: formData.password,
+          });
         }
         onClose();
       } catch (err) {
@@ -85,6 +111,7 @@ export function UsersModule() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 value={formData.username}
                 onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                placeholder="Ingresa el nombre de usuario"
               />
             </div>
 
@@ -98,8 +125,100 @@ export function UsersModule() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="usuario@empresa.com"
               />
             </div>
+
+            {/* Campo de contraseña para nuevos usuarios */}
+            {!user && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Contraseña *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="Ingresa la contraseña"
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4 text-gray-400" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-gray-400" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Confirmar Contraseña *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
+                      value={formData.confirmPassword}
+                      onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                      placeholder="Confirma la contraseña"
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="h-4 w-4 text-gray-400" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-gray-400" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Campo de contraseña opcional para edición */}
+            {user && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nueva Contraseña (opcional)
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="Dejar vacío para no cambiar"
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-gray-400" />
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Solo completa si deseas cambiar la contraseña
+                </p>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -135,14 +254,14 @@ export function UsersModule() {
                 type="button"
                 onClick={onClose}
                 disabled={saving}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
                 {saving ? 'Guardando...' : (user ? 'Actualizar' : 'Crear')} Usuario
               </button>
@@ -203,7 +322,7 @@ export function UsersModule() {
         <button
           onClick={() => setShowForm(true)}
           disabled={loading}
-          className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
         >
           <Plus className="h-4 w-4" />
           <span>Agregar Usuario</span>
@@ -307,13 +426,16 @@ export function UsersModule() {
                           setShowForm(true);
                         }}
                         className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded"
+                        title="Editar usuario"
                       >
                         <Edit className="h-4 w-4" />
                       </button>
                       {user.id !== currentUser?.id && (
                         <button 
                           onClick={() => handleDelete(user.id)}
-                          className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded">
+                          className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded"
+                          title="Eliminar usuario"
+                        >
                           <Trash2 className="h-4 w-4" />
                         </button>
                       )}
@@ -330,6 +452,14 @@ export function UsersModule() {
               <p className="text-gray-500">
                 {searchTerm ? 'No se encontraron usuarios' : 'No hay usuarios registrados'}
               </p>
+              {!searchTerm && (
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                >
+                  Crear Primer Usuario
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -464,19 +464,19 @@ export function PointOfSale() {
                       </div>
                     )}
                     
-                    {product.imageUrl && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setImagePreview(product.imageUrl!);
-                        }}
-                        className="text-xs text-blue-600 hover:text-blue-800 flex items-center"
-                        title="Ver imagen"
-                      >
-                        <Eye className="h-3 w-3 mr-1" />
-                        Ver
-                      </button>
-                    )}
+{product.imageUrl && (
+  <span
+    onClick={(e) => {
+      e.stopPropagation();
+      setImagePreview(product.imageUrl!);
+    }}
+    className="text-xs text-blue-600 hover:text-blue-800 flex items-center cursor-pointer"
+    title="Ver imagen"
+  >
+    <Eye className="h-3 w-3 mr-1" />
+    Ver
+  </span>
+)}
                   </div>
 
                   {/* Columna derecha - Información */}

@@ -1,5 +1,6 @@
+// src/types/index.ts
 export interface Product {
-  id?: string; // Cambiado a opcional con ?
+  id?: string;
   code: string;
   name: string;
   description: string;
@@ -13,8 +14,8 @@ export interface Product {
   maxStock: number;
   expirationDate?: string;
   imageUrl?: string;
-  createdAt?: string; // También puede ser opcional
-  updatedAt?: string; // También puede ser opcional
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface KardexEntry {
@@ -64,6 +65,10 @@ export interface User {
   role: UserRole;
   isActive: boolean;
   createdAt: string;
+  password: string;
+  // Campos de tu base de datos (snake_case)
+  is_active?: boolean; // Para compatibilidad con la BD
+  created_at?: string; // Para compatibilidad con la BD
 }
 
 export type UserRole = 'admin' | 'supervisor' | 'cashier';
@@ -88,4 +93,85 @@ export interface Alert {
   severity: 'low' | 'medium' | 'high';
   isRead: boolean;
   createdAt: string;
+}
+
+// Tipo para mapear usuarios desde la base de datos
+export interface UserFromDB {
+  id: string;
+  username: string;
+  email: string;
+  role: UserRole;
+  is_active: boolean;
+  created_at: string;
+  password: string;
+  updated_at?: string;
+}
+
+// Función para convertir usuario de la BD al tipo frontend
+export const mapUserFromDB = (userFromDB: UserFromDB): User => ({
+  id: userFromDB.id,
+  username: userFromDB.username,
+  email: userFromDB.email,
+  role: userFromDB.role,
+  isActive: userFromDB.is_active, // ← Aquí está el error! Debe ser is_active
+  createdAt: userFromDB.created_at,
+  password: userFromDB.password,
+});
+
+// Función para convertir usuario del frontend al tipo BD
+export const mapUserToDB = (user: User): UserFromDB => ({
+  id: user.id,
+  username: user.username,
+  email: user.email,
+  role: user.role,
+  is_active: user.isActive,
+  created_at: user.createdAt,
+  password: user.password,
+  updated_at: new Date().toISOString(),
+});
+
+// Tipo para login response
+export interface LoginResponse {
+  user: User;
+  session?: any;
+}
+
+// Tipo para crear usuario
+export interface CreateUserRequest {
+  username: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+  password: string;
+}
+
+// Tipo para actualizar usuario
+export interface UpdateUserRequest {
+  id: string;
+  username?: string;
+  email?: string;
+  role?: UserRole;
+  isActive?: boolean;
+  password?: string;
+}
+
+// Filtros para usuarios
+export interface UserFilters {
+  role?: UserRole;
+  isActive?: boolean;
+  search?: string;
+}
+
+// Paginación
+export interface PaginationParams {
+  page: number;
+  limit: number;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }

@@ -1,3 +1,4 @@
+// src/context/AppContext.tsx
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
 import { Sale, User, KardexEntry, CashSession, Alert, UserRole } from '../types';
 import { useProducts } from '../hooks/useProducts';
@@ -10,7 +11,6 @@ interface AppState {
   alerts: Alert[];
   currentUser: User | null;
   currentCashSession: CashSession | null;
-  // Products y Users ahora se manejan por separado con hooks
 }
 
 type AppAction =
@@ -25,7 +25,7 @@ type AppAction =
   | { type: 'MARK_ALERT_READ'; payload: string }
   | { type: 'LOAD_DATA'; payload: Partial<AppState> };
 
-const AppContext = createContext<{
+interface AppContextType {
   state: AppState;
   dispatch: React.Dispatch<AppAction>;
   products: {
@@ -41,13 +41,15 @@ const AppContext = createContext<{
     data: User[];
     loading: boolean;
     error: string | null;
-    addUser: (user: Omit<User, 'id' | 'createdAt'>) => Promise<User>;
-    updateUser: (user: User) => Promise<User>;
+    addUser: (user: Omit<User, 'id' | 'createdAt'>) => Promise<void>;
+    updateUser: (user: User) => Promise<void>;
     deleteUser: (id: string) => Promise<void>;
     findUserByUsername: (username: string) => Promise<User | null>;
     refetch: () => Promise<void>;
   };
-} | null>(null);
+}
+
+const AppContext = createContext<AppContextType | null>(null);
 
 const initialState: AppState = {
   sales: [],
@@ -73,7 +75,11 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, currentUser: null, currentCashSession: null };
     
     case 'START_CASH_SESSION':
-      return { ...state, currentCashSession: action.payload, cashSessions: [...state.cashSessions, action.payload] };
+      return { 
+        ...state, 
+        currentCashSession: action.payload, 
+        cashSessions: [...state.cashSessions, action.payload] 
+      };
     
     case 'END_CASH_SESSION':
       const updatedSession = state.currentCashSession ? {
@@ -124,20 +130,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const savedData = localStorage.getItem('inventorySystem');
     if (savedData) {
-      const parsedData = JSON.parse(savedData);
-      dispatch({ type: 'LOAD_DATA', payload: parsedData });
+      try {
+        const parsedData = JSON.parse(savedData);
+        dispatch({ type: 'LOAD_DATA', payload: parsedData });
+      } catch (error) {
+        console.error('Error loading data from localStorage:', error);
+      }
     }
   }, []);
 
   // Save data to localStorage on state changes
   useEffect(() => {
-    if (state.sales.length > 0) {
-      localStorage.setItem('inventorySystem', JSON.stringify({
-        sales: state.sales,
-        kardexEntries: state.kardexEntries,
-        cashSessions: state.cashSessions,
-        alerts: state.alerts,
-      }));
+    const dataToSave = {
+      sales: state.sales,
+      kardexEntries: state.kardexEntries,
+      cashSessions: state.cashSessions,
+      alerts: state.alerts,
+    };
+    
+    try {
+      localStorage.setItem('inventorySystem', JSON.stringify(dataToSave));
+    } catch (error) {
+      console.error('Error saving data to localStorage:', error);
     }
   }, [state.sales, state.kardexEntries, state.cashSessions, state.alerts]);
 

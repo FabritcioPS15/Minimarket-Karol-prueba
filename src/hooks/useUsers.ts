@@ -1,158 +1,275 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import { User } from '../types';
+// src/hooks/useUsers.ts
+import { useEffect, useState, useCallback } from "react";
+import { supabase } from "../lib/supabase";
+import { User, UserFromDB, UserRole, mapUserFromDB } from "../types";
 
 export function useUsers() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Convertir datos de la base de datos al formato de la aplicación
-  const transformFromDB = (dbUser: any): User => ({
-    id: dbUser.id,
-    username: dbUser.username,
-    email: dbUser.email,
-    role: dbUser.role,
-    isActive: dbUser.is_active,
-    createdAt: dbUser.created_at,
-  });
-
-  // Cargar usuarios
-  const fetchUsers = async () => {
+  // Obtener todos los usuarios - CON DEBUGGING
+  const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const transformedUsers = data?.map(transformFromDB) || [];
-      setUsers(transformedUsers);
       setError(null);
-    } catch (err) {
-      console.error('Error fetching users:', err);
-      setError('Error al cargar usuarios');
+      console.log("🔄 Fetching users from Supabase...");
+      
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("❌ Supabase fetch error:", error);
+        throw error;
+      }
+      
+      console.log("📊 Raw users data from DB:", data);
+      
+      // Mapear usuarios de la BD al tipo frontend
+      const mappedUsers = (data as UserFromDB[]).map(mapUserFromDB);
+      console.log("🎯 Mapped users:", mappedUsers);
+      
+      setUsers(mappedUsers || []);
+    } catch (err: any) {
+      setError(err.message);
+      console.error("❌ Error fetching users:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // Agregar usuario
-  const addUser = async (userData: Omit<User, 'id' | 'createdAt'>) => {
+  // Buscar usuario por username - CON DEBUGGING MEJORADO
+  const findUserByUsername = useCallback(async (username: string): Promise<User | null> => {
     try {
-      // Primero crear el usuario en auth.users (esto sería ideal con una función de servidor)
-      // Por ahora, generamos un UUID temporal
-      const tempId = crypto.randomUUID();
+      console.log("🔍 Searching for username:", username);
+      
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("username", username)
+        .limit(1);
 
-      const dbUser = {
-        id: tempId,
+      console.log("📋 Raw DB response for", username, ":", { data, error });
+      
+      if (error) {
+        console.error("❌ Supabase search error:", error);
+        throw error;
+      }
+      
+      if (data && data.length > 0) {
+        console.log("✅ User found in DB:", data[0]);
+        const mappedUser = mapUserFromDB(data[0] as UserFromDB);
+        console.log("🎯 Mapped user object:", mappedUser);
+        return mappedUser;
+      }
+      
+      console.log("❌ No user found with username:", username);
+      
+      // Debug: ver todos los usuarios en la BD
+      const { data: allUsers } = await supabase
+        .from("users")
+        .select("username, is_active")
+        .limit(10);
+      console.log("📋 All usernames in DB:", allUsers);
+      
+      return null;
+    } catch (err: any) {
+      console.error("❌ Error finding user:", err);
+      return null;
+    }
+  }, []);
+
+  // Agregar usuario - CON DEBUGGING
+  const addUser = async (userData: {
+    username: string;
+    email: string;
+    role: UserRole;
+    isActive: boolean;
+    password: string;
+  }) => {
+    try {
+      const userToInsert = {
         username: userData.username,
         email: userData.email,
         role: userData.role,
         is_active: userData.isActive,
+        password: userData.password,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       };
 
-      const { data, error } = await supabase
-        .from('users')
-        .insert([dbUser])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      const newUser = transformFromDB(data);
-      setUsers(prev => [newUser, ...prev]);
-      return newUser;
-    } catch (err) {
-      console.error('Error adding user:', err);
-      throw new Error('Error al agregar usuario');
+      console.log("➕ Adding user to DB:", { ...userToInsert, password: '***' }); // No loggear password real
+      
+      const { data, error } = await supabase.from("users").insert([userToInsert]).select();
+      
+      if (error) {
+        console.error("❌ Error adding user:", error);
+        throw error;
+      }
+      
+      console.log("✅ User added successfully:", data);
+      await fetchUsers();
+    } catch (err: any) {
+      console.error("❌ Error in addUser:", err.message);
+      throw err;
     }
   };
 
-  // Actualizar usuario
+  // Actualizar usuario - CORREGIDO
   const updateUser = async (user: User) => {
     try {
-      const dbUser = {
+      // Preparar datos para actualizar (solo campos que pueden cambiar)
+      const userToUpdate: any = {
         username: user.username,
         email: user.email,
         role: user.role,
         is_active: user.isActive,
+        updated_at: new Date().toISOString(),
       };
 
-      const { data, error } = await supabase
-        .from('users')
-        .update(dbUser)
-        .eq('id', user.id)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      const updatedUser = transformFromDB(data);
-      setUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
-      return updatedUser;
-    } catch (err) {
-      console.error('Error updating user:', err);
-      throw new Error('Error al actualizar usuario');
-    }
-  };
-
-  // Eliminar usuario
-  const deleteUser = async (userId: string) => {
-    try {
-      const { error } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', userId);
-
-      if (error) throw error;
-
-      setUsers(prev => prev.filter(u => u.id !== userId));
-    } catch (err) {
-      console.error('Error deleting user:', err);
-      throw new Error('Error al eliminar usuario');
-    }
-  };
-
-  // Buscar usuario por username
-  const findUserByUsername = async (username: string): Promise<User | null> => {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('username', username)
-        .eq('is_active', true)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return null;
-        }
-        throw error;
+      // Solo incluir password si se proporcionó uno nuevo y no está vacío
+      if (user.password && user.password.trim() !== '') {
+        userToUpdate.password = user.password;
       }
 
-      return transformFromDB(data);
-    } catch (err) {
-      console.error('Error finding user by username:', err);
+      console.log("✏️ Updating user:", { ...userToUpdate, password: userToUpdate.password ? '***' : 'unchanged' });
+      
+      const { error } = await supabase
+        .from("users")
+        .update(userToUpdate)
+        .eq("id", user.id);
+
+      if (error) {
+        console.error("❌ Error updating user:", error);
+        throw error;
+      }
+      
+      console.log("✅ User updated successfully");
+      await fetchUsers();
+    } catch (err: any) {
+      console.error("❌ Error in updateUser:", err.message);
+      throw err;
+    }
+  };
+
+  // Eliminar usuario - CON MEJOR MANEJO DE ERRORES
+  const deleteUser = async (id: string) => {
+    try {
+      console.log("🗑️ Deleting user with ID:", id);
+      
+      const { error } = await supabase.from("users").delete().eq("id", id);
+      
+      if (error) {
+        console.error("❌ Error deleting user:", error);
+        throw error;
+      }
+      
+      console.log("✅ User deleted successfully");
+      await fetchUsers();
+    } catch (err: any) {
+      console.error("❌ Error in deleteUser:", err.message);
+      throw err;
+    }
+  };
+
+  // Verificar credenciales de login - CON DEBUGGING
+  const verifyCredentials = async (username: string, password: string): Promise<User | null> => {
+    try {
+      console.log("🔐 Verifying credentials for:", username);
+      const user = await findUserByUsername(username);
+      
+      console.log("📋 User found for verification:", user ? { ...user, password: '***' } : null);
+      
+      if (user) {
+        console.log("🔑 Password check - DB exists:", !!user.password, "Input provided:", !!password);
+        console.log("✅ Active status:", user.isActive);
+        
+        if (user.password === password && user.isActive) {
+          console.log("🎉 Credentials verified successfully!");
+          return user;
+        }
+      }
+      
+      console.log("❌ Credentials verification failed");
+      return null;
+    } catch (err: any) {
+      console.error("❌ Error verifying credentials:", err);
       return null;
     }
   };
 
-  // Efecto para carga inicial
+  // Función de debugging
+  const debugUsers = async () => {
+    try {
+      console.log("🐛 DEBUG: Current users state:", users);
+      
+      const { data, error } = await supabase
+        .from("users")
+        .select("*");
+      
+      if (error) {
+        console.error("🐛 DEBUG Error:", error);
+        return;
+      }
+      
+      console.log("🐛 DEBUG - All users in DB:", data);
+      return data;
+    } catch (err) {
+      console.error("🐛 DEBUG Error:", err);
+    }
+  };
+
+  // Función para verificar políticas RLS
+  const checkRLSPolicies = async () => {
+    try {
+      console.log("🔍 Checking RLS policies...");
+      
+      // Probar operaciones básicas
+      const { data: session } = await supabase.auth.getSession();
+      console.log("🔐 Session:", session);
+      
+      // Probar SELECT
+      const { error: selectError } = await supabase
+        .from("users")
+        .select("count")
+        .limit(1);
+      console.log("✅ SELECT policy:", selectError ? `Error: ${selectError.message}` : "Working");
+      
+      // Probar INSERT (usaremos un usuario temporal)
+      const { error: insertError } = await supabase
+        .from("users")
+        .insert({ 
+          username: 'test_rls', 
+          email: 'test@rls.com', 
+          role: 'cashier', 
+          is_active: true,
+          password: 'temp123'
+        })
+        .select();
+      console.log("✅ INSERT policy:", insertError ? `Error: ${insertError.message}` : "Working");
+      
+    } catch (err) {
+      console.error("❌ RLS check error:", err);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [fetchUsers]);
 
   return {
     users,
     loading,
     error,
+    refetch: fetchUsers,
     addUser,
     updateUser,
     deleteUser,
     findUserByUsername,
-    refetch: fetchUsers,
+    verifyCredentials,
+    debugUsers,
+    checkRLSPolicies, // ← Nueva función para debug RLS
   };
 }
