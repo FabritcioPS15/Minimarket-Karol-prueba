@@ -3,27 +3,34 @@ import { useApp } from '../context/AppContext';
 import { Package, Lock, User } from 'lucide-react';
 
 export function Login() {
-  const { state, dispatch } = useApp();
+  const { state, dispatch, users } = useApp();
   const [credentials, setCredentials] = useState({
     username: '',
     password: '',
   });
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Simple authentication - in production, this would be more secure
-    const user = state.users.find(u => 
-      u.username === credentials.username && u.isActive
-    );
+    setLoading(true);
+    setError('');
 
-    if (user) {
-      // For demo purposes, any password works
-      dispatch({ type: 'LOGIN', payload: user });
-      setError('');
-    } else {
-      setError('Usuario no encontrado o inactivo');
+    try {
+      // Buscar usuario en la base de datos
+      const user = await users.findUserByUsername(credentials.username);
+      
+      if (user && user.isActive) {
+        // For demo purposes, any password works
+        dispatch({ type: 'LOGIN', payload: user });
+      } else {
+        setError('Usuario no encontrado o inactivo');
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Error al iniciar sesión');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -85,9 +92,10 @@ export function Login() {
 
             <button
               type="submit"
+              disabled={loading}
               className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all font-medium"
             >
-              Iniciar Sesión
+              {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
             </button>
           </form>
 

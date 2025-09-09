@@ -1,16 +1,16 @@
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
 import { Sale, User, KardexEntry, CashSession, Alert, UserRole } from '../types';
 import { useProducts } from '../hooks/useProducts';
+import { useUsers } from '../hooks/useUsers';
 
 interface AppState {
   sales: Sale[];
-  users: User[];
   kardexEntries: KardexEntry[];
   cashSessions: CashSession[];
   alerts: Alert[];
   currentUser: User | null;
   currentCashSession: CashSession | null;
-  // Products ahora se manejan por separado con el hook
+  // Products y Users ahora se manejan por separado con hooks
 }
 
 type AppAction =
@@ -37,45 +37,26 @@ const AppContext = createContext<{
     deleteProduct: (id: string) => Promise<void>;
     refetch: () => Promise<void>;
   };
+  users: {
+    data: User[];
+    loading: boolean;
+    error: string | null;
+    addUser: (user: Omit<User, 'id' | 'createdAt'>) => Promise<User>;
+    updateUser: (user: User) => Promise<User>;
+    deleteUser: (id: string) => Promise<void>;
+    findUserByUsername: (username: string) => Promise<User | null>;
+    refetch: () => Promise<void>;
+  };
 } | null>(null);
 
 const initialState: AppState = {
   sales: [],
-  users: [],
   kardexEntries: [],
   cashSessions: [],
   alerts: [],
   currentUser: null,
   currentCashSession: null,
 };
-
-// Create default users
-const defaultUsers: User[] = [
-  {
-    id: '1',
-    username: 'admin',
-    email: 'admin@sistema.com',
-    role: 'admin',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    username: 'supervisor',
-    email: 'supervisor@sistema.com',
-    role: 'supervisor',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: '3',
-    username: 'vendedor',
-    email: 'vendedor@sistema.com',
-    role: 'cashier',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-  },
-];
 
 function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
@@ -137,15 +118,14 @@ function appReducer(state: AppState, action: AppAction): AppState {
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const productsHook = useProducts();
+  const usersHook = useUsers();
 
   // Load data from localStorage on mount
   useEffect(() => {
     const savedData = localStorage.getItem('inventorySystem');
     if (savedData) {
       const parsedData = JSON.parse(savedData);
-      dispatch({ type: 'LOAD_DATA', payload: { ...parsedData, users: defaultUsers } });
-    } else {
-      dispatch({ type: 'LOAD_DATA', payload: { users: defaultUsers } });
+      dispatch({ type: 'LOAD_DATA', payload: parsedData });
     }
   }, []);
 
@@ -173,6 +153,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateProduct: productsHook.updateProduct,
         deleteProduct: productsHook.deleteProduct,
         refetch: productsHook.refetch,
+      },
+      users: {
+        data: usersHook.users,
+        loading: usersHook.loading,
+        error: usersHook.error,
+        addUser: usersHook.addUser,
+        updateUser: usersHook.updateUser,
+        deleteUser: usersHook.deleteUser,
+        findUserByUsername: usersHook.findUserByUsername,
+        refetch: usersHook.refetch,
       }
     }}>
       {children}

@@ -13,13 +13,14 @@ import {
 } from 'lucide-react';
 
 export function UsersModule() {
-  const { state, dispatch } = useApp();
-  const { users, currentUser } = state;
+  const { state, users } = useApp();
+  const { currentUser } = state;
   const [showForm, setShowForm] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const filteredUsers = users.filter(user =>
+  const filteredUsers = users.data.filter(user =>
     user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -31,26 +32,33 @@ export function UsersModule() {
       role: user?.role || 'cashier' as UserRole,
       isActive: user?.isActive ?? true,
     });
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
-      
-      const userData: User = {
-        id: user?.id || Date.now().toString(),
-        ...formData,
-        createdAt: user?.createdAt || new Date().toISOString(),
-      };
+      setSaving(true);
+      setError('');
 
-      // Note: In a real app, this would make an API call
-      if (user) {
-        // Update user logic would go here
-        console.log('Update user:', userData);
-      } else {
-        // Add user logic would go here  
-        console.log('Add user:', userData);
+      try {
+        if (user) {
+          // Actualizar usuario existente
+          const updatedUser: User = {
+            ...user,
+            ...formData,
+          };
+          await users.updateUser(updatedUser);
+        } else {
+          // Crear nuevo usuario
+          await users.addUser(formData);
+        }
+        onClose();
+      } catch (err) {
+        console.error('Error saving user:', err);
+        setError(err instanceof Error ? err.message : 'Error al guardar usuario');
+      } finally {
+        setSaving(false);
       }
-
-      onClose();
     };
 
     return (
@@ -61,6 +69,12 @@ export function UsersModule() {
           </h3>
           
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                {error}
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Nombre de Usuario *
@@ -120,21 +134,41 @@ export function UsersModule() {
               <button
                 type="button"
                 onClick={onClose}
+                disabled={saving}
                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
+                disabled={saving}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
-                {user ? 'Actualizar' : 'Crear'} Usuario
+                {saving ? 'Guardando...' : (user ? 'Actualizar' : 'Crear')} Usuario
               </button>
             </div>
           </form>
         </div>
       </div>
     );
+  };
+
+  const handleDelete = async (userId: string) => {
+    if (userId === currentUser?.id) {
+      alert('No puedes eliminar tu propio usuario');
+      return;
+    }
+
+    if (confirm('¿Estás seguro de que quieres eliminar este usuario?')) {
+      setLoading(true);
+      try {
+        await users.deleteUser(userId);
+      } catch (error) {
+        alert('Error al eliminar el usuario');
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   if (currentUser?.role !== 'admin') {
@@ -146,16 +180,29 @@ export function UsersModule() {
     );
   }
 
+  // Mostrar loading
+  if (users.loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-2 text-gray-600">Cargando usuarios...</span>
+      </div>
+    );
+  }
+
+  const totalUsers = users.data.length;
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Gestión de Usuarios</h2>
-          <p className="text-gray-600">Administra los usuarios del sistema</p>
+          <p className="text-gray-600">Administra los usuarios del sistema ({totalUsers} usuarios)</p>
         </div>
         <button
           onClick={() => setShowForm(true)}
+          disabled={loading}
           className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Plus className="h-4 w-4" />
@@ -164,6 +211,13 @@ export function UsersModule() {
       </div>
 
       {/* Search */}
+      {users.error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+          <p>{users.error}</p>
+          <button onClick={users.refetch} className="mt-2 text-sm underline">Reintentar</button>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -257,7 +311,9 @@ export function UsersModule() {
                         <Edit className="h-4 w-4" />
                       </button>
                       {user.id !== currentUser?.id && (
-                        <button className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded">
+                        <button 
+                          onClick={() => handleDelete(user.id)}
+                          className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       )}
@@ -267,6 +323,15 @@ export function UsersModule() {
               ))}
             </tbody>
           </table>
+          
+          {filteredUsers.length === 0 && (
+            <div className="text-center py-12">
+              <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">
+                {searchTerm ? 'No se encontraron usuarios' : 'No hay usuarios registrados'}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
