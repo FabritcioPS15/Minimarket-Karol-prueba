@@ -1,6 +1,6 @@
 // src/context/AppContext.tsx
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
-import { Sale, User, KardexEntry, CashSession, Alert, UserRole } from '../types';
+import { Sale, User, KardexEntry, CashSession, Alert, UserRole, AuditEntry } from '../types';
 import { useProducts } from '../hooks/useProducts';
 import { useUsers } from '../hooks/useUsers';
 
@@ -9,6 +9,7 @@ interface AppState {
   kardexEntries: KardexEntry[];
   cashSessions: CashSession[];
   alerts: Alert[];
+  auditEntries: AuditEntry[];   // 👈 agregado
   currentUser: User | null;
   currentCashSession: CashSession | null;
 }
@@ -21,6 +22,7 @@ type AppAction =
   | { type: 'START_CASH_SESSION'; payload: CashSession }
   | { type: 'END_CASH_SESSION' }
   | { type: 'ADD_CASH_SESSION_HISTORY'; payload: CashSession }
+  | { type: 'ADD_AUDIT_ENTRY'; payload: AuditEntry }
   | { type: 'ADD_ALERT'; payload: Alert }
   | { type: 'MARK_ALERT_READ'; payload: string }
   | { type: 'LOAD_DATA'; payload: Partial<AppState> };
@@ -28,6 +30,7 @@ type AppAction =
 interface AppContextType {
   state: AppState;
   dispatch: React.Dispatch<AppAction>;
+  addAuditEntry: (entry: Omit<AuditEntry, 'id' | 'timestamp' | 'userId' | 'username'>) => void;
   products: {
     data: any[];
     loading: boolean;
@@ -56,6 +59,7 @@ const initialState: AppState = {
   kardexEntries: [],
   cashSessions: [],
   alerts: [],
+  auditEntries: [],   // 👈 inicializado vacío
   currentUser: null,
   currentCashSession: null,
 };
@@ -115,6 +119,9 @@ function appReducer(state: AppState, action: AppAction): AppState {
     
     case 'LOAD_DATA':
       return { ...state, ...action.payload };
+
+    case 'ADD_AUDIT_ENTRY':
+      return { ...state, auditEntries: [...state.auditEntries, action.payload] };
     
     default:
       return state;
@@ -125,6 +132,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const productsHook = useProducts();
   const usersHook = useUsers();
+
+  // 👉 función para registrar eventos de auditoría
+  const addAuditEntry = (
+    entry: Omit<AuditEntry, 'id' | 'timestamp' | 'userId' | 'username'>
+  ) => {
+    if (!state.currentUser) return;
+    const auditEntry: AuditEntry = {
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString(),
+      userId: state.currentUser.id,
+      username: state.currentUser.username,
+      ...entry,
+    };
+    dispatch({ type: 'ADD_AUDIT_ENTRY', payload: auditEntry });
+  };
 
   // Load data from localStorage on mount
   useEffect(() => {
@@ -146,6 +168,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       kardexEntries: state.kardexEntries,
       cashSessions: state.cashSessions,
       alerts: state.alerts,
+      auditEntries: state.auditEntries,  // 👈 agregado a persistencia
     };
     
     try {
@@ -153,12 +176,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Error saving data to localStorage:', error);
     }
-  }, [state.sales, state.kardexEntries, state.cashSessions, state.alerts]);
+  }, [state.sales, state.kardexEntries, state.cashSessions, state.alerts, state.auditEntries]);
 
   return (
     <AppContext.Provider value={{ 
       state, 
       dispatch,
+      addAuditEntry,
       products: {
         data: productsHook.products,
         loading: productsHook.loading,

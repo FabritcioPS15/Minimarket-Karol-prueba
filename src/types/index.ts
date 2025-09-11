@@ -175,3 +175,23 @@ export interface PaginatedResponse<T> {
   limit: number;
   totalPages: number;
 }
+
+export interface AuditEntry {
+  id: string;
+  timestamp: string;
+  userId: string;
+  username: string;
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT' | 'OPEN_CASH' | 'CLOSE_CASH' | 'SALE';
+  entity: 'product' | 'sale' | 'user' | 'cash' | 'system';
+  entityId: string;
+  entityName: string;
+  details: string;
+  oldValue?: any;
+  newValue?: any;
+  metadata?: {
+    ipAddress?: string;
+    userAgent?: string;
+    sessionId?: string;
+    [key: string]: any;
+  };
+}
